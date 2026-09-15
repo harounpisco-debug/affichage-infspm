@@ -1,5 +1,14 @@
 {
-  "slides": [],
+  "slides": [
+    {
+      "categorie": "sante",
+      "icone": "none",
+      "imageUrl": "https://harounpisco-debug.github.io/affichage-infspm/assets/images/1789477171511-images.jfif",
+      "titre": "sante",
+      "texte": "",
+      "duree": 5
+    }
+  ],
   "order": "alterne",
   "musicUrl": "https://harounpisco-debug.github.io/affichage-infspm/assets/audio/1789477193111-In-the-Moment_chosic.com_.mp3",
   "musicVolume": 40
