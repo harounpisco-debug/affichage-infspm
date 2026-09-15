@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Éditeur — Affichage INFSPM Jijel</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --ink:#16232b; --paper:#f7f5ef; --paper-line:#e3ddc9;
+    --petrol:#1f4d47; --petrol-dk:#153833; --clay:#b5502f; --clay-soft:#e8d9cf;
+    --sante:#2f6d5c; --annonce:#a5502f;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'Iowan Old Style','Georgia',serif; background:var(--paper); color:var(--ink);}
+  #app{max-width:960px; margin:0 auto; padding:1.6em;}
+  header.app{
+    background:var(--petrol); color:#f2efe4; padding:1.1em 1.6em;
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.6em;
+    border-bottom:4px solid var(--clay);
+  }
+  header.app h1{font-size:1.2em; margin:0; font-weight:600;}
+  header.app .sub{font-family:'Courier New',monospace; font-size:.7em; opacity:.85; text-transform:uppercase; letter-spacing:.05em;}
+  button.primary{
+    font-family:'Courier New',monospace; text-transform:uppercase; letter-spacing:.05em; font-size:.78em;
+    background:var(--petrol); color:#fff; border:none; padding:.7em 1.3em; border-radius:2px; cursor:pointer;
+  }
+  button.primary:hover{background:var(--petrol-dk);}
+  button.primary:disabled{opacity:.5; cursor:not-allowed;}
+  button.ghost{
+    font-family:'Courier New',monospace; text-transform:uppercase; font-size:.72em; letter-spacing:.04em;
+    background:transparent; border:1px solid #c9c2a8; color:var(--ink); padding:.5em .9em; border-radius:2px; cursor:pointer;
+  }
+  button.danger{color:var(--clay); border-color:var(--clay-soft);}
+  button.ghost:hover{background:#f0ece0;}
+  .card{background:#fff; border:1px solid var(--paper-line); border-radius:3px; padding:1.3em; margin:1.3em 0; box-shadow:0 1px 3px rgba(22,35,43,.06);}
+  .card h2{margin:0 0 .9em 0; font-size:1em; color:var(--petrol-dk);}
+  .field{display:flex; flex-direction:column; gap:.3em; margin-bottom:.9em;}
+  .field label{font-size:.72em; text-transform:uppercase; letter-spacing:.04em; color:#3a4a52; font-family:'Courier New',monospace;}
+  .field input, .field select, .field textarea{
+    font-family:inherit; font-size:.95em; padding:.55em .7em; border:1px solid #c9c2a8; border-radius:2px;
+    background:#fffef9; color:var(--ink); resize:vertical;
+  }
+  .row2{display:flex; gap:1em; flex-wrap:wrap;}
+  .row2 .field{flex:1; min-width:160px;}
+  .slide-item{display:flex; align-items:center; gap:.9em; padding:.8em; border:1px solid var(--paper-line); border-radius:3px; margin-bottom:.6em; background:#fffef9;}
+  .slide-item .cat-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
+  .slide-item .cat-dot.sante{background:var(--sante);}
+  .slide-item .cat-dot.annonce{background:var(--annonce);}
+  .slide-item .info{flex:1; min-width:0;}
+  .slide-item .info .t{font-weight:600; font-size:.95em;}
+  .slide-item .info .b{font-size:.8em; color:#3a4a52; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .slide-item .actions{display:flex; gap:.4em; flex-shrink:0;}
+  .slide-item .thumb{width:44px; height:44px; flex-shrink:0; border-radius:3px; overflow:hidden; background:#f0ece0; display:flex; align-items:center; justify-content:center;}
+  .slide-item .thumb img{width:100%; height:100%; object-fit:cover;}
+  .empty{text-align:center; padding:2em 1em; color:#3a4a52; font-family:'Courier New',monospace; font-size:.85em;}
+  .settings-row{display:flex; align-items:center; gap:.8em; flex-wrap:wrap;}
+  #syncStatus{font-family:'Courier New',monospace; font-size:.72em; padding:.5em .9em; border-radius:2px; margin-top:.6em;}
+  #syncStatus.ok{background:#e2f0e9; color:var(--petrol-dk);}
+  #syncStatus.err{background:#f6e2da; color:var(--clay);}
+  #syncStatus.pending{background:#f0ece0; color:#3a4a52;}
+  .hint{font-size:.75em; color:#3a4a52; margin-top:.4em; line-height:1.5;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="app">
+    <div>
+      <h1>Éditeur — Affichage public</h1>
+      <div class="sub">INFSPM Jijel — تحرير المحتوى (متزامن عبر GitHub)</div>
+    </div>
+  </header>
+
+  <div class="card" id="connectCard">
+    <h2>1. الاتصال بمستودع GitHub</h2>
+    <div class="row2">
+      <div class="field">
+        <label>اسم المستخدم / المؤسسة (owner)</label>
+        <input type="text" id="ghOwner" placeholder="مثال: your-username">
+      </div>
+      <div class="field">
+        <label>اسم المستودع (repository)</label>
+        <input type="text" id="ghRepo" placeholder="مثال: affichage-infspm">
+      </div>
+    </div>
+    <div class="field">
+      <label>الفرع (branch)</label>
+      <input type="text" id="ghBranch" value="main">
+    </div>
+    <div class="field">
+      <label>Personal Access Token (يُحفظ فقط في متصفحك، لا يُرسل لأي مكان آخر)</label>
+      <input type="password" id="ghToken" placeholder="ghp_...">
+    </div>
+    <button class="primary" id="btnConnect">اتصال وتحميل المحتوى الحالي</button>
+    <div id="syncStatus" class="pending" style="display:none;"></div>
+    <div class="hint">
+      لإنشاء الرمز: على GitHub اذهب إلى Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token، فعّل صلاحية "repo" فقط، ثم انسخه هنا. يُحفظ الرمز محلياً في متصفحك فقط ولا يُشارك مع أي طرف.
+      <br><br>
+      هذا الرمز يُستعمل أيضاً لرفع الصور والموسيقى مباشرة من جهازك — لا حاجة لأي حساب إضافي.
+    </div>
+  </div>
+
+  <div id="editArea" style="display:none;">
+    <div class="card">
+      <h2>2. إضافة محتوى</h2>
+      <form id="formSlide">
+        <div class="row2">
+          <div class="field">
+            <label>Catégorie</label>
+            <select id="slCategorie">
+              <option value="sante">Santé — sensibilisation</option>
+              <option value="annonce">Annonce / Actualité</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Durée d'affichage (secondes)</label>
+            <input type="number" id="slDuree" min="5" max="60" value="12">
+          </div>
+        </div>
+        <div class="field" id="fieldIcone">
+          <label>Icône illustrative (si aucune image)</label>
+          <select id="slIcone">
+            <option value="none">Aucune</option>
+            <option value="mains">Lavage des mains</option>
+            <option value="masque">Masque / respiratoire</option>
+            <option value="nutrition">Nutrition</option>
+            <option value="vaccin">Vaccination</option>
+            <option value="sport">Activité physique</option>
+            <option value="sommeil">Sommeil / repos</option>
+            <option value="eau">Hydratation</option>
+            <option value="coeur">Santé cardiaque</option>
+            <option value="info">Information générale</option>
+            <option value="megaphone">Annonce / mégaphone</option>
+            <option value="calendrier">Événement / date</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Lien d'image (optionnel — URL depuis internet)</label>
+          <input type="url" id="slImageUrl" placeholder="https://...">
+        </div>
+        <div class="field">
+          <label>أو ارفع صورة مباشرة من الجهاز</label>
+          <input type="file" id="slImageFile" accept="image/*">
+          <div id="imgUploadStatus" style="font-size:.78em; font-family:'Courier New',monospace; color:#3a4a52;"></div>
+        </div>
+        <div class="field">
+          <label>Titre</label>
+          <input type="text" id="slTitre" required placeholder="Ex. Lavez-vous les mains régulièrement">
+        </div>
+        <div class="field">
+          <label>Texte / description</label>
+          <textarea id="slTexte" rows="3" placeholder="Ex. Le lavage des mains réduit considérablement le risque de transmission des infections."></textarea>
+        </div>
+        <button class="primary" type="submit">Ajouter au diaporama</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Importer un PowerPoint (.pptx)</h2>
+      <div class="row2">
+        <div class="field">
+          <label>Catégorie</label>
+          <select id="pptxCategorie">
+            <option value="sante">Santé — sensibilisation</option>
+            <option value="annonce">Annonce / Actualité</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Durée par diapositive (secondes)</label>
+          <input type="number" id="pptxDuree" min="5" max="60" value="12">
+        </div>
+      </div>
+      <div class="field">
+        <label>Fichier PowerPoint (.pptx)</label>
+        <input type="file" id="pptxFile" accept=".pptx">
+      </div>
+      <button class="primary" type="button" id="btnImportPptx">Importer les diapositives</button>
+      <div id="pptxStatus" style="font-size:.78em; color:#3a4a52; font-family:'Courier New',monospace; margin-top:.6em;"></div>
+      <div class="hint">Le titre et le texte de chaque diapositive sont extraits automatiquement. Les images intégrées ne sont pas récupérées — ajoutez un lien d'image manuellement si besoin.</div>
+    </div>
+
+    <div class="card">
+      <h2 id="listTitle">Contenus programmés</h2>
+      <div id="slideList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Réglages de l'affichage</h2>
+      <div class="settings-row">
+        <label style="font-family:'Courier New',monospace; font-size:.78em; text-transform:uppercase;">Alterner santé / annonces :</label>
+        <select id="settingOrder">
+          <option value="alterne">Alterné (santé puis annonce...)</option>
+          <option value="ordre">Dans l'ordre d'ajout</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Musique de fond (calme)</h2>
+      <div class="field">
+        <label>Lien audio (URL — MP3)</label>
+        <input type="url" id="musicUrl" placeholder="https://...">
+      </div>
+      <div class="field">
+        <label>أو ارفع ملف موسيقى (MP3) مباشرة من الجهاز</label>
+        <input type="file" id="musicFile" accept="audio/*">
+        <div id="musicUploadStatus" style="font-size:.78em; font-family:'Courier New',monospace; color:#3a4a52;"></div>
+      </div>
+      <div class="settings-row">
+        <label style="font-family:'Courier New',monospace; font-size:.78em; text-transform:uppercase;">Volume :</label>
+        <input type="range" id="musicVolume" min="0" max="100" value="40" style="max-width:200px;">
+      </div>
+    </div>
+
+    <div id="syncStatus2" class="ok" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+let state = { slides: [], order: 'alterne', musicUrl:'', musicVolume: 40 };
+let ghConfig = { owner:'', repo:'', branch:'main', token:'' };
+let ghSha = null;
+
+function b64EncodeUnicode(str){
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (m,p1)=>String.fromCharCode('0x'+p1)));
+}
+function b64DecodeUnicode(str){
+  return decodeURIComponent(atob(str).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+}
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function setStatus(el, msg, cls){
+  el.style.display='block';
+  el.textContent = msg;
+  el.className = cls;
+}
+
+function apiUrl(){
+  return `https://api.github.com/repos/${ghConfig.owner}/${ghConfig.repo}/contents/data.json`;
+}
+
+async function ghLoad(){
+  const statusEl = document.getElementById('syncStatus');
+  setStatus(statusEl, 'جارٍ الاتصال وتحميل المحتوى...', 'pending');
+  const res = await fetch(apiUrl() + `?ref=${encodeURIComponent(ghConfig.branch)}`, {
+    headers: { Authorization: `token ${ghConfig.token}`, Accept:'application/vnd.github+json' }
+  });
+  if(res.status===404){
+    // create the file for the first time
+    ghSha = null;
+    state = { slides: [], order:'alterne', musicUrl:'', musicVolume:40 };
+    await ghSave('إنشاء ملف البيانات الأولي');
+    setStatus(statusEl, '✓ تم الاتصال. تم إنشاء ملف بيانات جديد.', 'ok');
+    return true;
+  }
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    setStatus(statusEl, `✗ فشل الاتصال (${res.status}): ${err.message||'تحقق من المعلومات المدخلة'}`, 'err');
+    return false;
+  }
+  const json = await res.json();
+  ghSha = json.sha;
+  try{
+    const content = b64DecodeUnicode(json.content.replace(/\n/g,''));
+    const parsed = JSON.parse(content);
+    state.slides = parsed.slides || [];
+    state.order = parsed.order || 'alterne';
+    state.musicUrl = parsed.musicUrl || '';
+    state.musicVolume = (parsed.musicVolume!==undefined && parsed.musicVolume!==null) ? parsed.musicVolume : 40;
+  }catch(e){
+    state = { slides: [], order:'alterne', musicUrl:'', musicVolume:40 };
+  }
+  setStatus(statusEl, '✓ متصل. تم تحميل المحتوى الحالي.', 'ok');
+  return true;
+}
+
+async function ghSave(message){
+  const statusEl = document.getElementById('syncStatus2');
+  setStatus(statusEl, 'جارٍ الحفظ على GitHub...', 'pending');
+  const body = {
+    message: message || 'تحديث المحتوى',
+    content: b64EncodeUnicode(JSON.stringify(state, null, 2)),
+    branch: ghConfig.branch
+  };
+  if(ghSha) body.sha = ghSha;
+  const res = await fetch(apiUrl(), {
+    method:'PUT',
+    headers:{ Authorization:`token ${ghConfig.token}`, Accept:'application/vnd.github+json', 'Content-Type':'application/json' },
+    body: JSON.stringify(body)
+  });
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    setStatus(statusEl, `✗ فشل الحفظ: ${err.message||res.status}`, 'err');
+    return false;
+  }
+  const json = await res.json();
+  ghSha = json.content.sha;
+  setStatus(statusEl, '✓ تم الحفظ بنجاح — سيظهر على التلفاز خلال ثوانٍ.', 'ok');
+  return true;
+}
+
+document.getElementById('btnConnect').addEventListener('click', async ()=>{
+  ghConfig.owner = document.getElementById('ghOwner').value.trim();
+  ghConfig.repo = document.getElementById('ghRepo').value.trim();
+  ghConfig.branch = document.getElementById('ghBranch').value.trim() || 'main';
+  ghConfig.token = document.getElementById('ghToken').value.trim();
+  if(!ghConfig.owner || !ghConfig.repo || !ghConfig.token){
+    alert('يرجى تعبئة جميع الحقول.');
+    return;
+  }
+  localStorage.setItem('gh_config', JSON.stringify(ghConfig));
+  const ok = await ghLoad();
+  if(ok){
+    document.getElementById('editArea').style.display='block';
+    document.getElementById('settingOrder').value = state.order;
+    document.getElementById('musicUrl').value = state.musicUrl;
+    document.getElementById('musicVolume').value = state.musicVolume;
+    renderList();
+  }
+});
+
+function renderList(){
+  const el = document.getElementById('slideList');
+  document.getElementById('listTitle').textContent = `Contenus programmés (${state.slides.length})`;
+  if(state.slides.length===0){
+    el.innerHTML = '<div class="empty">Aucun contenu ajouté encore. Utilisez le formulaire ci-dessus.</div>';
+    return;
+  }
+  el.innerHTML = state.slides.map((s,i)=>`
+    <div class="slide-item">
+      <div class="cat-dot ${s.categorie}"></div>
+      <div class="thumb">${s.imageUrl ? `<img src="${s.imageUrl}">` : ''}</div>
+      <div class="info">
+        <div class="t">${escapeHtml(s.titre)}</div>
+        <div class="b">${escapeHtml(s.texte||'')} · ${s.duree}s</div>
+      </div>
+      <div class="actions">
+        <button class="ghost" data-action="up" data-i="${i}" ${i===0?'disabled':''}>↑</button>
+        <button class="ghost" data-action="down" data-i="${i}" ${i===state.slides.length-1?'disabled':''}>↓</button>
+        <button class="ghost danger" data-action="del" data-i="${i}">Supprimer</button>
+      </div>
+    </div>
+  `).join('');
+
+  el.querySelectorAll('[data-action="del"]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const i = parseInt(btn.dataset.i);
+      state.slides.splice(i,1);
+      renderList();
+      await ghSave('حذف شريحة');
+    });
+  });
+  el.querySelectorAll('[data-action="up"]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const i = parseInt(btn.dataset.i);
+      [state.slides[i-1], state.slides[i]] = [state.slides[i], state.slides[i-1]];
+      renderList();
+      await ghSave('إعادة ترتيب الشرائح');
+    });
+  });
+  el.querySelectorAll('[data-action="down"]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const i = parseInt(btn.dataset.i);
+      [state.slides[i+1], state.slides[i]] = [state.slides[i], state.slides[i+1]];
+      renderList();
+      await ghSave('إعادة ترتيب الشرائح');
+    });
+  });
+}
+
+function sanitizeFilename(name){
+  return name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+}
+
+async function uploadFileToGithub(file, folder){
+  const b64 = await new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  const path = `assets/${folder}/${Date.now()}-${sanitizeFilename(file.name)}`;
+  const url = `https://api.github.com/repos/${ghConfig.owner}/${ghConfig.repo}/contents/${path}`;
+  const res = await fetch(url, {
+    method:'PUT',
+    headers:{ Authorization:`token ${ghConfig.token}`, Accept:'application/vnd.github+json', 'Content-Type':'application/json' },
+    body: JSON.stringify({ message:'رفع ملف من صفحة التحرير', content: b64, branch: ghConfig.branch })
+  });
+  const json = await res.json();
+  if(!res.ok) throw new Error(json.message || 'upload-failed');
+  return `https://${ghConfig.owner}.github.io/${ghConfig.repo}/${path}`;
+}
+
+document.getElementById('slImageFile').addEventListener('change', async e=>{
+  const file = e.target.files[0];
+  const statusEl = document.getElementById('imgUploadStatus');
+  if(!file) return;
+  statusEl.textContent = 'جارٍ رفع الصورة...';
+  try{
+    const url = await uploadFileToGithub(file, 'images');
+    document.getElementById('slImageUrl').value = url;
+    statusEl.textContent = '✓ تم رفع الصورة بنجاح.';
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = '✗ فشل رفع الصورة: ' + err.message;
+  }
+});
+
+document.getElementById('musicFile').addEventListener('change', async e=>{
+  const file = e.target.files[0];
+  const statusEl = document.getElementById('musicUploadStatus');
+  if(!file) return;
+  statusEl.textContent = 'جارٍ رفع الملف الصوتي...';
+  try{
+    const url = await uploadFileToGithub(file, 'audio');
+    document.getElementById('musicUrl').value = url;
+    state.musicUrl = url;
+    statusEl.textContent = '✓ تم الرفع بنجاح. جارٍ الحفظ...';
+    await ghSave('رفع ملف موسيقى جديد');
+    statusEl.textContent = '✓ تم رفع الملف وحفظه بنجاح.';
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = '✗ فشل الرفع: ' + err.message;
+  }
+});
+
+document.getElementById('formSlide').addEventListener('submit', async e=>{
+  e.preventDefault();
+  state.slides.push({
+    categorie: document.getElementById('slCategorie').value,
+    icone: document.getElementById('slIcone').value,
+    imageUrl: document.getElementById('slImageUrl').value.trim(),
+    titre: document.getElementById('slTitre').value.trim(),
+    texte: document.getElementById('slTexte').value.trim(),
+    duree: parseInt(document.getElementById('slDuree').value)||12
+  });
+  renderList();
+  document.getElementById('formSlide').reset();
+  document.getElementById('slDuree').value = 12;
+  await ghSave('إضافة شريحة جديدة');
+});
+
+document.getElementById('settingOrder').addEventListener('change', async e=>{
+  state.order = e.target.value;
+  await ghSave('تغيير إعداد الترتيب');
+});
+document.getElementById('musicUrl').addEventListener('change', async e=>{
+  state.musicUrl = e.target.value.trim();
+  await ghSave('تحديث رابط الموسيقى');
+});
+document.getElementById('musicVolume').addEventListener('change', async e=>{
+  state.musicVolume = parseInt(e.target.value);
+  await ghSave('تحديث مستوى الصوت');
+});
+
+// ---------- Import PowerPoint (.pptx) — texte uniquement ----------
+async function importPptx(file, categorie, duree){
+  const statusEl = document.getElementById('pptxStatus');
+  statusEl.textContent = 'Lecture du fichier…';
+  try{
+    if(typeof JSZip === 'undefined') throw new Error('no-jszip');
+    const zip = await JSZip.loadAsync(file);
+    const parser = new DOMParser();
+    const presFile = zip.file('ppt/presentation.xml');
+    const presRelsFile = zip.file('ppt/_rels/presentation.xml.rels');
+    if(!presFile || !presRelsFile) throw new Error('not-pptx');
+    const presDoc = parser.parseFromString(await presFile.async('text'), 'application/xml');
+    const relsDoc = parser.parseFromString(await presRelsFile.async('text'), 'application/xml');
+    const relMap = {};
+    Array.from(relsDoc.getElementsByTagName('Relationship')).forEach(r=>{ relMap[r.getAttribute('Id')] = r.getAttribute('Target'); });
+    const slidePaths = Array.from(presDoc.getElementsByTagName('p:sldId')).map(el=>relMap[el.getAttribute('r:id')]).filter(Boolean);
+    if(slidePaths.length===0) throw new Error('no-slides');
+    let imported = 0;
+    for(const relPath of slidePaths){
+      const fullPath = 'ppt/'+relPath;
+      const slideFile = zip.file(fullPath);
+      if(!slideFile) continue;
+      const slideDoc = parser.parseFromString(await slideFile.async('text'), 'application/xml');
+      let titre = '';
+      const bodyParts = [];
+      Array.from(slideDoc.getElementsByTagName('p:sp')).forEach(sp=>{
+        const phEl = sp.getElementsByTagName('p:ph')[0];
+        const phType = phEl ? phEl.getAttribute('type') : null;
+        const isTitle = phType==='title' || phType==='ctrTitle';
+        const texts = Array.from(sp.getElementsByTagName('a:t')).map(t=>t.textContent).filter(Boolean);
+        const joined = texts.join(' ').trim();
+        if(!joined) return;
+        if(isTitle && !titre) titre = joined; else bodyParts.push(joined);
+      });
+      if(!titre) titre = bodyParts.length ? bodyParts.shift() : `Diapositive ${imported+1}`;
+      state.slides.push({ categorie, icone:'none', imageUrl:'', titre, texte: bodyParts.join(' — '), duree });
+      imported++;
+    }
+    if(imported===0) throw new Error('no-slides');
+    renderList();
+    await ghSave(`استيراد ${imported} شريحة من PowerPoint`);
+    statusEl.textContent = `✓ ${imported} diapositive(s) importée(s) avec succès.`;
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = "Impossible de lire ce fichier. Vérifiez qu'il s'agit d'un .pptx valide, non protégé par mot de passe.";
+  }
+}
+document.getElementById('btnImportPptx').addEventListener('click', async ()=>{
+  const file = document.getElementById('pptxFile').files[0];
+  if(!file){ alert('Choisissez un fichier .pptx.'); return; }
+  const btn = document.getElementById('btnImportPptx');
+  btn.disabled = true;
+  const categorie = document.getElementById('pptxCategorie').value;
+  const duree = parseInt(document.getElementById('pptxDuree').value)||12;
+  await importPptx(file, categorie, duree);
+  document.getElementById('pptxFile').value = '';
+  btn.disabled = false;
+});
+
+// ---------- init: reload saved connection ----------
+(function init(){
+  try{
+    const saved = JSON.parse(localStorage.getItem('gh_config')||'null');
+    if(saved){
+      ghConfig = saved;
+      document.getElementById('ghOwner').value = saved.owner;
+      document.getElementById('ghRepo').value = saved.repo;
+      document.getElementById('ghBranch').value = saved.branch;
+      document.getElementById('ghToken').value = saved.token;
+    }
+  }catch(e){}
+})();
+</script>
+</body>
+</html>

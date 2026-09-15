@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Affichage — INFSPM Jijel</title>
+<style>
+  :root{
+    --petrol-dk:#153833;
+    --clay:#b5502f;
+    --sante:#2f6d5c;
+    --annonce:#a5502f;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; width:100%; height:100%;
+    font-family:'Iowan Old Style','Georgia',serif;
+    background:var(--petrol-dk);
+    overflow:hidden;
+  }
+  #startScreen{
+    position:fixed; inset:0;
+    background:var(--petrol-dk);
+    color:#f2efe4;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; z-index:2000; gap:1.2em;
+  }
+  #startScreen h1{font-size:1.6em; margin:0; font-weight:600;}
+  #startScreen .sub{font-family:'Courier New',monospace; font-size:.8em; opacity:.75; text-transform:uppercase; letter-spacing:.06em;}
+  #startBtn{
+    font-family:'Courier New',monospace; text-transform:uppercase; letter-spacing:.06em;
+    font-size:1em; background:var(--clay); color:#fff; border:none;
+    padding:.9em 2em; border-radius:3px; cursor:pointer; margin-top:1em;
+  }
+  #presentation{position:fixed; inset:0; background:var(--petrol-dk); color:#fff; display:none;}
+  #presentation.active{display:block;}
+  .slide{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    justify-content:center; align-items:center; text-align:center;
+    padding:4vw 6vw; opacity:0; transition:opacity .8s ease;
+  }
+  .slide.show{opacity:1;}
+  .slide-icon{margin-bottom:1.5vw; color:rgba(255,255,255,.92);}
+  .slide-icon svg{width:9vw; height:9vw; min-width:70px; min-height:70px;}
+  .slide.has-image{padding:0; justify-content:flex-end; align-items:flex-start; text-align:left;}
+  .slide .bg-image{position:absolute; inset:0; width:100%; height:100%; background-size:cover; background-position:center; z-index:0;}
+  .slide .bg-overlay{position:absolute; inset:0; background:linear-gradient(0deg, rgba(10,20,18,.88) 10%, rgba(10,20,18,.35) 55%, rgba(10,20,18,.1) 100%); z-index:1;}
+  .slide.has-image > *:not(.bg-image):not(.bg-overlay){position:relative; z-index:2;}
+  .slide.has-image{padding:0 6vw 6vh 6vw;}
+  .slide.has-image h2{font-size:3.6vw; max-width:100%;}
+  .slide.has-image p{max-width:100%; font-size:1.9vw;}
+  .slide .band{
+    font-family:'Courier New',monospace; text-transform:uppercase; letter-spacing:.15em;
+    font-size:1.6vw; padding:.5em 1.4em; border-radius:3px; margin-bottom:2vw;
+  }
+  .slide.sante{background:linear-gradient(160deg,#1f4d47,#123430);}
+  .slide.sante .band{background:#3d8a71; color:#fff;}
+  .slide.annonce{background:linear-gradient(160deg,#5a2e1c,#2e160d);}
+  .slide.annonce .band{background:var(--clay); color:#fff;}
+  .slide h2{font-size:5vw; margin:0 0 1.5vw 0; font-weight:700; max-width:90%; line-height:1.15;}
+  .slide p{font-size:2.3vw; max-width:75%; line-height:1.5; opacity:.95; font-family:'Georgia',serif;}
+  .slide .footer-mark{position:absolute; bottom:3vh; font-family:'Courier New',monospace; font-size:1vw; letter-spacing:.1em; text-transform:uppercase; opacity:.55;}
+  .progress-dots{position:absolute; bottom:6vh; display:flex; gap:.6em; left:50%; transform:translateX(-50%);}
+  .progress-dots .dot{width:.6vw; height:.6vw; min-width:6px; min-height:6px; border-radius:50%; background:rgba(255,255,255,.3);}
+  .progress-dots .dot.active{background:#fff;}
+  #emptyMsg{position:fixed; inset:0; display:none; align-items:center; justify-content:center; color:#f2efe4; font-family:'Courier New',monospace; text-align:center; padding:2em;}
+</style>
+</head>
+<body>
+
+<div id="startScreen">
+  <h1>Affichage public — INFSPM Jijel</h1>
+  <div class="sub">Institut National de Formation Supérieure Paramédicale</div>
+  <button id="startBtn">▶ بدء العرض</button>
+</div>
+
+<div id="presentation">
+  <div id="slidesContainer"></div>
+  <div class="progress-dots" id="dots"></div>
+</div>
+<div id="emptyMsg">لا توجد محتويات مبرمجة بعد.<br>أضف شرائح من صفحة التحرير (editor.html).</div>
+
+<script>
+const ICONS = {
+  mains: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M20 34c0-8 4-14 12-14s12 6 12 14c0 8-6 12-12 12s-12-4-12-12z" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M18 20l4 6M46 20l-4 6M32 16v8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
+  masque: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M16 28c0-3 3-5 6-5h20c3 0 6 2 6 5v6c0 6-7 10-16 10s-16-4-16-10v-6z" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M20 30h24M20 36h24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
+  nutrition: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M32 14c-8 0-14 8-14 18 0 8 6 14 14 14s14-6 14-14c0-10-6-18-14-18z" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M32 14c2-4 6-6 8-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
+  vaccin: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><rect x="22" y="26" width="20" height="10" rx="2" transform="rotate(-45 32 31)" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M42 22l4-4M20 40l-6 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
+  sport: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="24" cy="20" r="4" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M24 24v10l-8 14M24 34l10 4 6 10M24 34l10-4 6-8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
+  sommeil: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M38 18a16 16 0 100 28 13 13 0 01-13-14 13 13 0 0113-14z" fill="currentColor"/>`,
+  eau: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M32 14c8 10 12 16 12 22a12 12 0 01-24 0c0-6 4-12 12-22z" fill="none" stroke="currentColor" stroke-width="2.5"/>`,
+  coeur: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M32 44c-8-6-14-11-14-18a8 8 0 0114-5 8 8 0 0114 5c0 7-6 12-14 18z" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M20 30h6l3-6 4 10 3-4h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`,
+  info: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="32" cy="22" r="1.5" fill="currentColor"/><path d="M32 30v14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>`,
+  megaphone: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M18 28v8l6 2 16 8V18l-16 8-6 2z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><path d="M24 38l2 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
+  calendrier: `<circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="2.5"/><rect x="18" y="20" width="28" height="24" rx="2" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M18 28h28M24 16v8M40 16v8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`
+};
+function iconSvg(key, size){
+  if(!key || key==='none' || !ICONS[key]) return '';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 64 64" style="flex-shrink:0;">${ICONS[key]}</svg>`;
+}
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let currentData = null;
+let currentSlidesKey = '';
+let presentIndex = 0;
+let presentTimer = null;
+let bgAudioEl = null;
+let started = false;
+const POLL_MS = 25000;
+
+function getOrderedSlides(data){
+  if(data.order!=='alterne') return data.slides;
+  const sante = data.slides.filter(s=>s.categorie==='sante');
+  const annonce = data.slides.filter(s=>s.categorie==='annonce');
+  const out=[]; let i=0,j=0;
+  while(i<sante.length || j<annonce.length){
+    if(i<sante.length) out.push(sante[i++]);
+    if(j<annonce.length) out.push(annonce[j++]);
+  }
+  return out;
+}
+
+function renderSlides(data){
+  const slides = getOrderedSlides(data);
+  const container = document.getElementById('slidesContainer');
+  const empty = document.getElementById('emptyMsg');
+  if(slides.length===0){
+    document.getElementById('presentation').classList.remove('active');
+    empty.style.display='flex';
+    return;
+  }
+  empty.style.display='none';
+  document.getElementById('presentation').classList.add('active');
+
+  container.innerHTML = slides.map((s,i)=>{
+    let bgHtml='', hasImageClass='';
+    if(s.imageUrl){
+      bgHtml = `<div class="bg-image" style="background-image:url('${s.imageUrl.replace(/'/g,"%27")}')"></div><div class="bg-overlay"></div>`;
+      hasImageClass = 'has-image';
+    }
+    return `
+      <div class="slide ${s.categorie} ${hasImageClass}" data-i="${i}">
+        ${bgHtml}
+        <div class="band">${s.categorie==='sante' ? 'Sensibilisation santé' : 'Annonce'}</div>
+        ${!hasImageClass && s.icone && s.icone!=='none' ? `<div class="slide-icon">${iconSvg(s.icone,120)}</div>` : ''}
+        <h2>${escapeHtml(s.titre)}</h2>
+        ${s.texte ? `<p>${escapeHtml(s.texte)}</p>` : ''}
+        <div class="footer-mark">INFSPM — Jijel</div>
+      </div>`;
+  }).join('');
+  document.getElementById('dots').innerHTML = slides.map((_,i)=>`<div class="dot" data-i="${i}"></div>`).join('');
+
+  // music
+  if(bgAudioEl){ bgAudioEl.pause(); bgAudioEl=null; }
+  if(data.musicUrl){
+    bgAudioEl = new Audio(data.musicUrl);
+    bgAudioEl.loop = true;
+    bgAudioEl.volume = ((data.musicVolume!==undefined && data.musicVolume!==null) ? data.musicVolume : 40)/100;
+    bgAudioEl.play().catch(()=>{});
+  }
+
+  if(presentIndex >= slides.length) presentIndex = 0;
+  showSlide(presentIndex, slides);
+}
+
+function showSlide(idx, slides){
+  document.querySelectorAll('.slide').forEach(el=>el.classList.remove('show'));
+  document.querySelectorAll('.dot').forEach(el=>el.classList.remove('active'));
+  const el = document.querySelector(`.slide[data-i="${idx}"]`);
+  const dot = document.querySelector(`.dot[data-i="${idx}"]`);
+  if(el) el.classList.add('show');
+  if(dot) dot.classList.add('active');
+  presentIndex = idx;
+  clearTimeout(presentTimer);
+  const duree = ((slides[idx] && slides[idx].duree) || 12) * 1000;
+  presentTimer = setTimeout(()=>{
+    const next = (idx+1) % slides.length;
+    showSlide(next, slides);
+  }, duree);
+}
+
+async function pollData(){
+  try{
+    const res = await fetch('data.json?t=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) throw new Error('fetch failed');
+    const data = await res.json();
+    const key = JSON.stringify(data);
+    if(key !== currentSlidesKey){
+      currentSlidesKey = key;
+      currentData = data;
+      renderSlides(data);
+    }
+  }catch(e){ /* keep showing last known content */ }
+}
+
+document.getElementById('startBtn').addEventListener('click', async ()=>{
+  document.getElementById('startScreen').style.display='none';
+  if(document.body.requestFullscreen){ document.body.requestFullscreen().catch(function(){}); }
+  fixTvScale();
+  await pollData();
+  setInterval(pollData, POLL_MS);
+});
+
+function fixTvScale(){
+  try{
+    var vw = window.innerWidth;
+    var sw = window.screen && window.screen.width;
+    if(sw && vw && vw < sw * 0.9){
+      var scale = sw / vw;
+      var vh = window.innerHeight;
+      document.documentElement.style.transform = 'scale(' + scale + ')';
+      document.documentElement.style.transformOrigin = 'top left';
+      document.documentElement.style.width = vw + 'px';
+      document.documentElement.style.height = vh + 'px';
+    }
+  }catch(e){}
+}
+window.addEventListener('resize', fixTvScale);
+</script>
+</body>
+</html>
